@@ -1,0 +1,57 @@
+/* eslint-env browser, jquery */
+/* global Drupal, once */
+
+(function ($, Drupal, once) {
+  'use strict';
+
+  Drupal.behaviors.uchSsdAccessibility = {
+    /**
+     * Attach accessibility tweaks to the current context.
+     * @param {Document|HTMLElement} context
+     * @returns {void}
+     */
+    attach: function (context) {
+      // Toggle tag/category lists for keyboard activation.
+      once('uch-ssd-tags-toggle', '#tags-title', context).forEach((element) => {
+        $(element).on('click.uchSsdAccessibility keypress.uchSsdAccessibility', function () {
+          $('.all-tags').toggle();
+          $('#tags-title').toggleClass('hide-list');
+        });
+      });
+
+      once('uch-ssd-category-toggle', '#category-title', context).forEach((element) => {
+        $(element).on('click.uchSsdAccessibility keypress.uchSsdAccessibility', function () {
+          $('.category-list').toggle();
+          $('#category-title').toggleClass('hide-list');
+        });
+      });
+
+      // After the webform is submitted focus on feedback regions when present.
+      once('uch-ssd-webform-focus', '.webform-confirmation__message', context).forEach((element) => {
+        $(element).focus();
+      });
+
+      // Desktop CSS shows the right column last, so match the DOM to keep tab order visual.
+      once('uch-ssd-footer-focus-order', 'footer.group-footer .paragraph--type--uc-footer', context).forEach((footer) => {
+        const rightContainer = footer.querySelector(':scope > .right-container');
+        const leftContainer = footer.querySelector(':scope > .left-container');
+
+        if (!rightContainer || !leftContainer) {
+          return;
+        }
+
+        const desktopQuery = window.matchMedia('(min-width: 1024px)');
+        const matchFocusOrder = () => {
+          if (desktopQuery.matches) {
+            footer.appendChild(rightContainer);
+          } else {
+            footer.insertBefore(rightContainer, leftContainer);
+          }
+        };
+
+        matchFocusOrder();
+        desktopQuery.addEventListener('change', matchFocusOrder);
+      });
+    }
+  };
+})(window.jQuery, Drupal, once);

@@ -1,0 +1,71 @@
+/* eslint-env browser, jquery */
+/* global Drupal, once */
+
+(function ($, Drupal, once) {
+  'use strict';
+
+  /**
+   * Reset the contact form values after the full page load.
+   * @returns {void}
+   */
+  function resetContactForm() {
+    const $form = $('form#contact-message-contact-us-form');
+    if ($form.length) {
+      $form.each(function () {
+        this.reset();
+      });
+    }
+  }
+
+  /**
+   * Shrink-wrap a title underline to the text width.
+   * @param {HTMLElement} element
+   * @returns {void}
+   */
+  function shrinkWrap(element) {
+    if (!element || !element.firstChild || !element.lastChild) {
+      return;
+    }
+
+    element.style.width = 'auto';
+    const range = document.createRange();
+    range.setStartBefore(element.firstChild);
+    range.setEndAfter(element.lastChild);
+    const width = range.getBoundingClientRect().width;
+    element.style.width = width + 'px';
+    element.style.boxSizing = 'content-box';
+  }
+
+  /**
+   * Apply shrink-wrap sizing to titles within the provided context.
+   * @param {Document|HTMLElement} context
+   * @returns {void}
+   */
+  function applyShrinkWrap(context) {
+    $(context).find('.title-shrinkwrap').each(function () {
+      shrinkWrap(this);
+    });
+  }
+
+  Drupal.behaviors.uchSsdCustom = {
+    /**
+     * Attach custom theme behaviors.
+     * @param {Document|HTMLElement} context
+     * @returns {void}
+     */
+    attach: function (context) {
+      applyShrinkWrap(context);
+
+      once('uch-ssd-custom-window', 'body', context).forEach(() => {
+        $(window).on('load.uchSsdCustom', function () {
+          resetContactForm();
+          applyShrinkWrap(document);
+        });
+
+        $(window).on('resize.uchSsdCustom orientationchange.uchSsdCustom', function () {
+          applyShrinkWrap(document);
+        });
+      });
+    }
+  };
+})(window.jQuery, Drupal, once);

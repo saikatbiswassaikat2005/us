@@ -1,0 +1,172 @@
+/* eslint-env browser, jquery */
+/* global Drupal, once */
+
+(function ($, Drupal, once) {
+  'use strict';
+
+  /**
+   * Minimum viewport width that uses hover-based menus.
+   * @type {number}
+   */
+  const DESKTOP_MIN_WIDTH = 992;
+
+  /**
+   * Decide if desktop menu interactions should be attached.
+   * @returns {boolean}
+   */
+  function shouldAttachDesktopMenu() {
+    return window.matchMedia && window.matchMedia('(min-width: ' + DESKTOP_MIN_WIDTH + 'px)').matches;
+  }
+
+  /**
+   * Find the dropdown a menu item owns, if any.
+   * @param {jQuery} $item
+   * @returns {jQuery}
+   */
+  function getDropdown($item) {
+    return $item.children('ul.dropdown-menu').first();
+  }
+
+  /**
+   * Toggle a menu item's dropdown with animation.
+   * @param {jQuery} $item
+   * @param {boolean} isOpen
+   * @returns {void}
+   */
+  function toggleDropdown($item, isOpen) {
+    const $menu = getDropdown($item);
+    if (!$menu.length) {
+      return;
+    }
+
+    $item.children('a.nav-link').first().attr('aria-expanded', isOpen ? 'true' : 'false');
+
+    if (isOpen) {
+      $menu.stop(true, true).slideDown('fast');
+    } else {
+      $menu.stop(true, true).slideUp('fast');
+    }
+  }
+
+  /**
+   * Close the dropdowns of every sibling of the given menu item.
+   * @param {jQuery} $item
+   * @returns {void}
+   */
+  function closeSiblingDropdowns($item) {
+    $item.siblings('li.nav-item').each(function () {
+      toggleDropdown($(this), false);
+    });
+  }
+
+  /**
+   * Decide whether a menu item is on the first level of its menu.
+   * @param {jQuery} $item
+   * @returns {boolean}
+   */
+  function isTopLevelItem($item) {
+    return !$item.parent('ul').hasClass('dropdown-menu');
+  }
+
+  /**
+   * Open a dropdown while its item holds focus so keyboard users see the submenu.
+   * @param {HTMLElement} item
+   * @returns {void}
+   */
+  function initFocusableDropdown(item) {
+    const $item = $(item);
+    if (!getDropdown($item).length || !isTopLevelItem($item)) {
+      return;
+    }
+
+    const $link = $item.children('a.nav-link').first();
+    $link.attr('aria-haspopup', 'true').attr('aria-expanded', 'false');
+
+    // Escape has to keep the dropdown shut while the item still holds focus.
+    let isDismissed = false;
+
+    $item.on('focusin.uchSsdMenu', function () {
+      if (isDismissed) {
+        return;
+      }
+      closeSiblingDropdowns($item);
+      toggleDropdown($item, true);
+    });
+
+    $item.on('focusout.uchSsdMenu', function (e) {
+      if (e.relatedTarget && item.contains(e.relatedTarget)) {
+        return;
+      }
+      isDismissed = false;
+      toggleDropdown($item, false);
+    });
+
+    $item.on('keydown.uchSsdMenu', function (e) {
+      const isEscape = e.key === 'Escape' || e.keyCode === 27;
+      if (!isEscape) {
+        return;
+      }
+      isDismissed = true;
+      toggleDropdown($item, false);
+      $link.trigger('focus');
+    });
+
+    $link.on('keydown.uchSsdMenu', function (e) {
+      const isArrowDown = e.key === 'ArrowDown' || e.keyCode === 40;
+      if (!isArrowDown) {
+        return;
+      }
+
+      e.preventDefault();
+      isDismissed = false;
+      toggleDropdown($item, true);
+      getDropdown($item).find('a').first().trigger('focus');
+    });
+  }
+
+  Drupal.behaviors.uchSsdMenu = {
+    /**
+     * Attach focus, hover and click behavior to dropdown menu items.
+     * @param {Document|HTMLElement} context
+     * @returns {void}
+     */
+    attach: function (context) {
+      once('uch-ssd-menu-focus', '.group-menu li.nav-item', context)
+        .forEach((item) => initFocusableDropdown(item));
+
+      if (!shouldAttachDesktopMenu()) {
+        return;
+      }
+
+      const toggles = once(
+        'uch-ssd-menu',
+        'header.groups ul.menu > .nav-item > span.dropdown-toggle, .navbar-nav span.dropdown-toggle',
+        context
+      );
+
+      toggles.forEach((toggle) => {
+        const $toggle = $(toggle);
+        const $item = $toggle.parent();
+
+        $item.on('mouseenter.uchSsdMenu', function () {
+          toggleDropdown($item, true);
+        });
+
+        $item.on('mouseleave.uchSsdMenu', function () {
+          // Keep the dropdown open while a keyboard user is still inside it.
+          if ($item[0].contains(document.activeElement)) {
+            return;
+          }
+          toggleDropdown($item, false);
+        });
+
+        $toggle.on('click.uchSsdMenu', function () {
+          const link = $toggle.prev('a').attr('href');
+          if (link) {
+            window.location.assign(link);
+          }
+        });
+      });
+    }
+  };
+})(window.jQuery, Drupal, once);

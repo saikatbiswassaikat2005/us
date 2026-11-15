@@ -1,0 +1,37 @@
+/* eslint-env browser */
+/* global Drupal */
+
+(function (Drupal) {
+  'use strict';
+
+  Drupal.behaviors.cleanUrl = {
+    /**
+     * Strip tracking query params from the current URL.
+     * @param {Document|HTMLElement} context
+     * @returns {void}
+     */
+    attach: function (context) {
+      if (context !== document) {
+        return;
+      }
+
+      const search = window.location.search;
+      if (!search || (search.indexOf('_ga=') === -1 && search.indexOf('_gl=') === -1)) {
+        return;
+      }
+
+      const params = new URLSearchParams(search);
+      params.delete('_ga');
+      params.delete('_gl');
+
+      let newUrl = window.location.pathname;
+      const newQuery = params.toString();
+      if (newQuery) {
+        newUrl += '?' + newQuery;
+      }
+      newUrl += window.location.hash;
+
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  };
+})(Drupal);

@@ -1,0 +1,153 @@
+/* eslint-env browser, jquery */
+/* global Drupal, once */
+
+(function ($, Drupal, once) {
+  'use strict';
+
+  /**
+   * Reflect the slider's paused state in the control's icon and label.
+   * @param {jQuery} $button
+   * @param {boolean} isPaused
+   * @returns {void}
+   */
+  const setPlayControlState = ($button, isPaused) => {
+    $button
+      .toggleClass('active', isPaused)
+      .attr('aria-pressed', isPaused ? 'true' : 'false')
+      .attr('aria-label', isPaused ? 'Play Slider' : 'Pause Slider');
+  };
+
+  /**
+   * Ensure the hero slider has play/pause controls.
+   * @param {jQuery} $wrapper
+   * @returns {void}
+   */
+  const ensureHeroSliderControls = ($wrapper) => {
+    const $dots = $wrapper.find('.slick-dots');
+
+    if (!$dots.length) {
+      return;
+    }
+
+    if (!$dots.parent().hasClass('slider-nav')) {
+      $dots.wrap('<div class="slider-nav"></div>');
+    }
+
+    const $navWrapper = $dots.parent();
+
+    if (!$navWrapper.find('.lower').length) {
+      $('<div class="lower"><button type="button" aria-label="Pause Slider" aria-pressed="false" class="play-control"></button></div>')
+        .insertAfter($dots);
+    }
+
+    $navWrapper.find('.play-control')
+      .off('click.heroSlider')
+      .on('click.heroSlider', function () {
+        const $button = $(this);
+        const $slider = $wrapper.find('.slick__slider');
+
+        if (!$slider.length) {
+          return;
+        }
+
+        const isPaused = !$button.hasClass('active');
+        setPlayControlState($button, isPaused);
+
+        if (isPaused) {
+          $slider
+            .slick('slickPause')
+            .slick('slickSetOption', 'pauseOnDotsHover', false)
+            .slick('slickSetOption', 'autoplay', false);
+        } else {
+          $slider
+            .slick('slickPlay')
+            .slick('slickSetOption', 'pauseOnDotsHover', true)
+            .slick('slickSetOption', 'autoplay', true);
+        }
+      });
+  };
+
+  Drupal.behaviors.heroSlider = {
+    /**
+     * Attach hero slider enhancements once per page load.
+     * @param {Document|HTMLElement} context
+     * @returns {void}
+     */
+    attach: function (context) {
+      const heroSelector = '.paragraph--type--uc-hero-slider';
+
+      once('hero-slider-wrapper', heroSelector, context).forEach((element) => {
+        const $wrapper = $(element);
+        const $slider = $wrapper.find('.slick__slider');
+
+        if (!$slider.length) {
+          return;
+        }
+
+        const setupControls = () => ensureHeroSliderControls($wrapper);
+
+        $slider.on('init.heroSlider reInit.heroSlider', setupControls);
+
+        if ($slider.hasClass('slick-initialized')) {
+          setupControls();
+        }
+      });
+
+      once('uc-carousel-afterchange', '.paragraph--type--uc-carousel .slick--thumbnail .slick__slider', context)
+        .forEach((element) => {
+          $(element).on('afterChange.heroSlider', function (event, slick, currentSlide) {
+          const slidesToShow = $(this).slick('slickGetOption', 'slidesToShow');
+          const totalSlides = slick.slideCount - 1;
+
+          if (currentSlide > totalSlides - slidesToShow + 1) {
+            setTimeout(() => {
+              $(slick.$slides).each(function () {
+                const $slide = $(this);
+                const index = parseInt($slide.attr('data-slick-index'), 10);
+
+                if (index > totalSlides - (slidesToShow) && index < currentSlide) {
+                  $slide.attr('tabindex', 0);
+                }
+              });
+            }, 0);
+          }
+        });
+      });
+
+      once('uc-carousel-keypress', '.paragraph--type--uc-carousel .slick--thumbnail .slick__slide', context)
+        .forEach((element) => {
+          $(element).on('keypress.heroSlider', function (event) {
+          if (event.which === 13) {
+            event.preventDefault();
+          }
+          $(this).trigger('click');
+        });
+      });
+
+      once(
+        'uc-carousel-beforechange',
+        '.paragraph--type--uc-carousel .slick--thumbnail.slick--less .slick__slider',
+        context
+      ).forEach((element) => {
+        $(element).on('beforeChange.heroSlider', function (event, slick) {
+          const slidesToShow = $(this).slick('slickGetOption', 'slidesToShow');
+          const totalSlides = slick.slideCount;
+
+          if (totalSlides <= slidesToShow) {
+            $(this).addClass('noscroll');
+          } else {
+            $(this).removeClass('noscroll');
+          }
+        });
+      });
+
+      once('uc-carousel-arrow-position', 'body', context).forEach(() => {
+        $(window).on('load.heroSlider resize.heroSlider orientationchange.heroSlider', function () {
+          const cheight = $('.slide__caption').outerHeight() + 35;
+          $('.paragraph--type--uc-carousel .slick--field-carousel-media--default nav.slick__arrow')
+            .css('bottom', '-' + cheight + 'px');
+        });
+      });
+    }
+  };
+})(window.jQuery, Drupal, once);
