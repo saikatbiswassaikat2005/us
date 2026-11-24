@@ -1,0 +1,42 @@
+var myPostRender = function(args) {
+  (function ($) {
+    if (! document.eaFormsCounter) {
+      document.eaFormsCounter = 0;
+    }
+    document.eaFormsCounter++;
+
+    // console.log(document.eaFormsCounter);
+    // console.log($('.ngp-form').length);
+    // console.log(document.eaFormsCounter + ' / ' + $('.ngp-form').length);
+
+    // Only run this section once per page -- used when multiple forms on one page.
+    if (document.eaFormsCounter === $('.ngp-form').length) {
+      // console.log('runOnce is not set');
+
+      // Move submit button for inline forms
+      $( ".ngp-form.at.sm-signup-inline" ).each(function(index) {
+        $(this).find('.at-form-submit').insertBefore($(this).find('.at-row.SmsSubscribeMobilePhone'));
+      });
+
+      // Condense the SMS consent text
+      $( ".ngp-form.at.sm-signup" ).each(function(index) {
+        // console.log($(this));
+        // console.log($(this).find('.at-markup.SmsLegalDisclaimer p'));
+        $(this).find('.at-markup.SmsLegalDisclaimer p').addClass('sm-sms-disclaimer').insertAfter($(this).find('.at-row.SmsSubscribeMobilePhone .at-check.SmsSubscribeMobilePhone'));
+        // console.log($(this).find('.at-row.SmsLegalDisclaimer'));
+        $(this).find('.at-row.SmsLegalDisclaimer').remove();
+      });
+
+      $('#NVSignupForm1468212 .at-row.DateOfBirth').append($('#NVSignupForm1468212 .at-row.PostalCode .at-text'));
+      $('#NVSignupForm1468212 .at-row.DateOfBirth').removeClass('at-row-solo');
+      $('#NVSignupForm1468212 .at-row.DateOfBirth').addClass('PostalCode');
+      $('#NVSignupForm1468212 .at-row.at-row-solo.PostalCode').remove();
+    }
+
+  }(jQuery));
+  //
+  return args;
+};
+var nvtag_callbacks = nvtag_callbacks || {};
+nvtag_callbacks.postRender = nvtag_callbacks.postRender || [];
+nvtag_callbacks.postRender.push(myPostRender);

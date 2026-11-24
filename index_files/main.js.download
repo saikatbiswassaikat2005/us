@@ -1,0 +1,163 @@
+document.addEventListener('DOMContentLoaded', function() {
+  // console.log('JS loaded');
+
+  const siteNav = document.querySelector(".site-header")
+  const observer = new IntersectionObserver(
+    ([e]) => e.target.classList.toggle("stuck", e.intersectionRatio < 1),
+    { threshold: [1] }
+  );
+
+  observer.observe(siteNav);
+
+
+  // Open the GTranslate switcher on hover on desktop, like the nav submenus (the widget itself is click-only)
+  const desktop = window.matchMedia('(min-width: 1000px)');
+  document.querySelectorAll('.site-header .sm-gt-wrapper').forEach(function(wrapper) {
+    let closeTimer = null;
+    const isOpen = () => wrapper.querySelector('.gt_float_switcher-arrow.gt_arrow_rotate') !== null;
+    const toggle = () => wrapper.querySelector('.gt-selected')?.click();
+
+    wrapper.addEventListener('pointerenter', function(e) {
+      if (e.pointerType !== 'mouse' || !desktop.matches) return;
+      clearTimeout(closeTimer);
+      if (!isOpen()) toggle();
+    });
+
+    wrapper.addEventListener('pointerleave', function(e) {
+      if (e.pointerType !== 'mouse' || !desktop.matches) return;
+      closeTimer = setTimeout(function() {
+        if (isOpen()) toggle();
+      }, 300);
+    });
+  });
+
+
+  // Use the one-row header (1620px and up) only when it fits; otherwise (e.g. long translations) add
+  // .sm-header-stacked so style.css keeps the two-row header.
+  const wide = window.matchMedia('(min-width: 1620px)');
+  const checkHeaderFit = function() {
+    const root = document.documentElement;
+    root.classList.remove('sm-header-stacked');
+    if (!wide.matches) return;
+    const logo = siteNav.querySelector('.wp-block-site-logo');
+    const nav = siteNav.querySelector('nav.primary-navigation');
+    if (!logo || !nav) return;
+    // Measure the final one-row layout, not the header's transitions part-way through, and unstuck: the
+    // stuck header's smaller logo can fit a row that wraps at the top of the page
+    root.classList.add('sm-header-measuring');
+    const stuck = siteNav.classList.contains('stuck');
+    siteNav.classList.remove('stuck');
+    const items = Array.from(nav.querySelectorAll('.wp-block-navigation__container > .wp-block-navigation-item, .wp-block-gtranslate-language-switcher'))
+      .filter(item => item.getBoundingClientRect().height > 0);
+    // Fits when the nav sits beside the logo and every item is on the first menu item's row
+    const row = items.length ? items[0].getBoundingClientRect() : null;
+    const fits = !row || (nav.getBoundingClientRect().top < logo.getBoundingClientRect().bottom && items.every(function(item) {
+      const rect = item.getBoundingClientRect();
+      const middle = (rect.top + rect.bottom) / 2;
+      return middle >= row.top && middle <= row.bottom;
+    }));
+    if (stuck) siteNav.classList.add('stuck');
+    if (!fits) root.classList.add('sm-header-stacked');
+    requestAnimationFrame(function() {
+      root.classList.remove('sm-header-measuring');
+    });
+  };
+
+  let headerFrame = null;
+  checkHeaderFit();
+  wide.addEventListener('change', checkHeaderFit);
+  window.addEventListener('resize', function() {
+    cancelAnimationFrame(headerFrame);
+    headerFrame = requestAnimationFrame(checkHeaderFit);
+  });
+  document.fonts.ready.then(checkHeaderFit);
+
+
+  // Shrink a heading whose longest word doesn't fit, instead of breaking the word (e.g. German, Russian).
+  // Browsers with CSS text-fit do this in style.css; this covers the rest (Safari, Firefox).
+  if (!(window.CSS && CSS.supports('text-fit', 'shrink'))) {
+    const headings = document.querySelectorAll('h1, h2, h3, .wp-block-post-title');
+    const widths = new WeakMap();
+
+    const fitHeading = function(heading) {
+      heading.style.removeProperty('font-size');
+      if (!heading.clientWidth) return;
+      heading.classList.add('sm-fit-measure');
+      let size = parseFloat(window.getComputedStyle(heading).fontSize);
+      const minSize = size * 0.6;
+      // Aim 2% under the exact fit so subpixel rounding doesn't break the word anyway
+      for (let i = 0; i < 4 && heading.scrollWidth > heading.clientWidth && size > minSize; i++) {
+        size = Math.max(minSize, Math.floor(size * heading.clientWidth / heading.scrollWidth * 0.98 * 10) / 10);
+        heading.style.setProperty('font-size', size + 'px', 'important');
+      }
+      heading.classList.remove('sm-fit-measure');
+    };
+
+    // Fit on the next frame, outside observer callbacks, so resizing doesn't loop the observer
+    const pending = new Set();
+    let frame = null;
+    const schedule = function(list) {
+      list.forEach(function(heading) { pending.add(heading); });
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(function() {
+        pending.forEach(fitHeading);
+        pending.clear();
+      });
+    };
+    const fitAll = function() {
+      schedule(headings);
+    };
+
+    // Refit when a heading's width changes (not its height, which the fit itself changes)
+    const resizeObserver = new ResizeObserver(function(entries) {
+      const changed = [];
+      entries.forEach(function(entry) {
+        const width = Math.round(entry.contentRect.width);
+        if (widths.get(entry.target) === width) return;
+        widths.set(entry.target, width);
+        changed.push(entry.target);
+      });
+      if (changed.length) schedule(changed);
+    });
+
+    // Refit when the text changes, e.g. GTranslate replacing it with a translation
+    const mutationObserver = new MutationObserver(fitAll);
+
+    headings.forEach(function(heading) {
+      resizeObserver.observe(heading);
+      mutationObserver.observe(heading, { characterData: true, childList: true, subtree: true });
+    });
+    mutationObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'lang'] });
+
+    document.fonts.ready.then(fitAll);
+  }
+
+
+  const homeHeroPullup = document.querySelector(".sm-hero-home-video .sm-hero-home-pull-up");
+  if (homeHeroPullup != null) {
+    // console.log('homeHeroPullup');
+    const homeHeroNext = document.querySelector(".sm-hero-home-video + *")
+    const homeHeroNextPaddingTop = parseInt(window.getComputedStyle(homeHeroNext, null).getPropertyValue('padding-top'), 10);
+
+    const observer = new ResizeObserver(entries => {
+      entries.forEach(entry => {
+
+        if (window.screen.width >= 1000) {
+          if (entry.borderBoxSize?.length > 0) {
+            const height = entry.borderBoxSize[0].blockSize;
+            // console.log('height', height);
+
+            paddingTop = homeHeroNextPaddingTop + (height * 0.75);
+            // console.log('paddingTop', paddingTop);
+
+            homeHeroNext.style.paddingTop = paddingTop + 'px';
+          }
+        } else {
+          homeHeroNext.style.paddingTop = null;
+        }
+      })
+    })
+
+    observer.observe(homeHeroPullup);
+  }
+});
